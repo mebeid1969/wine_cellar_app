@@ -41,8 +41,6 @@ st.sidebar.header("⚡ Quick Queries")
 
 # Quick Queries with keys for session_state
 quick_magnums = st.sidebar.checkbox("Magnums only", key="quick_magnums")
-quick_closet = st.sidebar.checkbox("Closet holdings", key="quick_closet")
-quick_france = st.sidebar.checkbox("French wines", key="quick_france")
 
 favorite_producer = st.sidebar.selectbox(
     "Favorite producers",
@@ -55,6 +53,7 @@ producer = st.selectbox("Producer", ["All"] + sorted(curr_lib["Producer"].dropna
 vintage = st.selectbox("Vintage", ["All"] + sorted(curr_lib["Vintage"].dropna().unique()), key="vintage")
 location = st.selectbox("Location", ["All"] + sorted(curr_lib["Location"].dropna().unique()), key="location")
 varietal = st.selectbox("Varietal", ["All"] + sorted(curr_lib["Varietal"].dropna().unique()), key="varietal")
+terrior = st.selectbox("Varietal", ["All"] + sorted(curr_lib["Terrior"].dropna().unique()), key="terrior")
 decade = st.selectbox("Decade", ["All"] + sorted(curr_lib["Decade"].dropna().unique()), key="decade")
 
 # --- Fridge/Shelf lookup ---
@@ -71,8 +70,6 @@ if fridge_choice != "None":
 st.sidebar.markdown("---")
 if st.sidebar.button("🔄 Reset Filters"):
     # Quick Queries
-    st.session_state["quick_magnums"] = False
-    st.session_state["quick_closet"] = False
     st.session_state["quick_france"] = False
     st.session_state["favorite_producer"] = "None"
     # Main filters
@@ -80,6 +77,7 @@ if st.sidebar.button("🔄 Reset Filters"):
     st.session_state["vintage"] = "All"
     st.session_state["location"] = "All"
     st.session_state["varietal"] = "All"
+    st.session_state["terrior"] = "All"
     st.session_state["decade"] = "All"
     # Fridge/Shelf
     st.session_state["fridge_choice"] = "None"
@@ -92,10 +90,6 @@ filtered = curr_lib.copy()
 # Quick Queries
 if quick_magnums:
     filtered = filtered[filtered["Notes"] == "Magnum"]
-if quick_closet:
-    filtered = filtered[filtered["Location"] == "Closet"]
-if quick_france:
-    filtered = filtered[filtered["Region"] == "France"]
 if favorite_producer != "None":
     filtered = filtered[filtered["Producer"] == favorite_producer]
 
@@ -108,6 +102,8 @@ if location != "All":
     filtered = filtered[filtered["Location"] == location]
 if varietal != "All":
     filtered = filtered[filtered["Varietal"] == varietal]
+if terrior != "All":
+    filtered = filtered[filtered["Terrior"] == terrior]
 if decade != "All":
     filtered = filtered[filtered["Decade"] == decade]
 if fridge_choice != "None":
@@ -149,13 +145,11 @@ tab1, tab2, tab3, tab4 = st.tabs(["By Location", "By Producer", "By Decade", "By
 with tab1:
     loc_summary = filtered.groupby("Location")["Bottles"].sum().reset_index()
     st.write(loc_summary)
-    st.bar_chart(loc_summary.set_index("Location"))
 
 with tab2:
     prod_summary = filtered.groupby("Producer")["Bottles"].sum().reset_index()
     st.write(prod_summary)
     top_producers = prod_summary.sort_values("Bottles", ascending=False).head(10)
-    st.bar_chart(top_producers.set_index("Producer"))
 
 with tab3:
     dec_summary = filtered.groupby("Decade")["Bottles"].sum().reset_index()
@@ -206,12 +200,6 @@ st.dataframe(fridge_summary, use_container_width=True)
 total_bottles = fridge_data['Bottles'].sum()
 st.markdown(f"**Total bottles in selection:** {total_bottles}")
 
-# Optional: Add chart visualization
-st.subheader("Bottles per Shelf")
-st.bar_chart(
-    fridge_summary.set_index('Box_Shelf_Number')['Bottles'],
-    use_container_width=True
-)
 
 # --- SELECT SPECIFIC SHELF TO VIEW DETAILS ---
 
