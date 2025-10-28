@@ -175,7 +175,7 @@ with st.expander("📊 Summary Views", expanded=False):
             st.pyplot(fig)
 
 # --- Fridge & Shelf Details ---
-with st.expander("🧊 Fridge Summary by Row", expanded=True):
+with st.expander("🧊 Fridge / Shelf Lookup", expanded=True):
     fridges_only = [loc for loc in curr_lib["Location"].dropna().unique() if "Fridge" in loc]
     selected_fridge = st.selectbox("Select a fridge location", ["All"] + sorted(fridges_only), key="selected_fridge")
     fridge_data = curr_lib[curr_lib["Location"].isin(fridges_only)]
