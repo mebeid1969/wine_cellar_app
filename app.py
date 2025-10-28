@@ -39,17 +39,17 @@ if 'Terroir' not in curr_lib.columns:
 # --- Streamlit UI ---
 st.set_page_config(page_title="Wine Cellar Explorer", layout="wide")
 
-# --- Initialize session_state keys ---
-default_session_keys = {
-    "quick_magnums": False,
-    "favorite_producer": "None",
-    "theme_toggle": False
-}
-for key, default in default_session_keys.items():
-    if key not in st.session_state:
-        st.session_state[key] = default
+# Initialize session_state keys
+if "reset_trigger" not in st.session_state:
+    st.session_state["reset_trigger"] = False
+if "quick_magnums" not in st.session_state:
+    st.session_state["quick_magnums"] = False
+if "favorite_producer" not in st.session_state:
+    st.session_state["favorite_producer"] = "None"
+if "theme_toggle" not in st.session_state:
+    st.session_state["theme_toggle"] = False
 
-# Sidebar - theme toggle
+# --- Sidebar Settings ---
 st.sidebar.header("⚙️ Settings")
 theme_toggle = st.sidebar.toggle("🌙 Dark mode", value=st.session_state["theme_toggle"])
 st.session_state["theme_toggle"] = theme_toggle
@@ -78,7 +78,7 @@ def inject_theme_css(theme_name: str):
     st.markdown(css, unsafe_allow_html=True)
 inject_theme_css(theme_name)
 
-# Chart colors
+# Chart color palette
 palette = {"line": "#9fc7e6" if theme_name == "dark" else "#1f77b4"}
 
 # --- Sidebar Quick Queries ---
@@ -93,11 +93,14 @@ favorite_producer = st.sidebar.selectbox(
 # --- Reset Filters Button (safe) ---
 st.sidebar.markdown("---")
 if st.sidebar.button("🔄 Reset Filters"):
-    # Only clear non-widget keys
-    for key in ["quick_magnums", "favorite_producer"]:
-        if key in st.session_state:
-            del st.session_state[key]
+    st.session_state["reset_trigger"] = True
     st.experimental_rerun()
+
+# Apply reset trigger
+if st.session_state["reset_trigger"]:
+    st.session_state["quick_magnums"] = False
+    st.session_state["favorite_producer"] = "None"
+    st.session_state["reset_trigger"] = False
 
 # --- Main Filters ---
 st.title("🍷 Wine Cellar Explorer")
@@ -136,6 +139,7 @@ if decade != "All":
 with st.expander("📋 Query Results", expanded=True):
     st.markdown(f"**{len(filtered)} records · {int(filtered['Bottles'].sum())} bottles total**")
     st.dataframe(filtered.sort_values(by=["Producer", "Vintage"]), use_container_width=True)
+
     # Excel export
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
@@ -184,20 +188,23 @@ else:
         'Basement Fridge Left', 'Basement Fridge Right', 'Waiter Fridge'
     ])]
 
-fridge_summary = fridge_data.groupby(['Location', 'Box_Shelf_Number']).agg({'Bottles': 'sum'}).reset_index().sort_values(['Location', 'Box_Shelf_Number'])
-st.subheader("Summary Table")
+fridge_summary = (
+    fridge_data.groupby(['Location', 'Box_Shelf_Number'])
+    .agg({'Bottles': 'sum'})
+    .reset_index()
+    .sort_values(['Location', 'Box_Shelf_Number'])
+)
 st.dataframe(fridge_summary, use_container_width=True)
 st.markdown(f"**Total bottles in selection:** {int(fridge_data['Bottles'].sum())}")
 
-# --- Shelf Details ---
-st.subheader("Select Specific Shelf to View Details")
+# --- Select Specific Shelf ---
+st.subheader("Shelf Details")
 available_shelves = sorted(fridge_data['Box_Shelf_Number'].dropna().unique())
 selected_shelf = st.selectbox("Select a shelf (row number)", ["All"] + [str(int(s)) for s in available_shelves], key="selected_shelf")
 if selected_shelf != "All":
     shelf_data = fridge_data[fridge_data['Box_Shelf_Number'] == int(selected_shelf)]
 else:
     shelf_data = fridge_data.copy()
-
 shelf_data = shelf_data.sort_values(by=['Producer', 'Vintage', 'Varietal'])
 st.dataframe(
     shelf_data[['Producer', 'Varietal', 'Vintage', 'Bottles', 'Notes', 'Entry_Record_ID']],
@@ -205,7 +212,7 @@ st.dataframe(
 )
 st.markdown(f"**Bottles shown:** {int(shelf_data['Bottles'].sum())}")
 
-# Excel export for selected shelf
+# Excel export for shelf
 output_shelf = io.BytesIO()
 with pd.ExcelWriter(output_shelf, engine="xlsxwriter") as writer:
     shelf_data.to_excel(writer, sheet_name="Shelf Details", index=False)
@@ -216,3 +223,4 @@ st.download_button(
     file_name="shelf_details.xlsx",
     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 )
+
