@@ -1,3 +1,4 @@
+# app.py
 import pandas as pd
 import streamlit as st
 import io
@@ -26,8 +27,8 @@ labels = ['1970s', '1980s', '1990s', '2000s', '2010s', '2020s']
 curr_lib['Decade'] = pd.cut(curr_lib['Vintage'], bins=bins, labels=labels, right=False)
 
 # --- Streamlit App ---
-st.set_page_config(page_title="Wine Cellar Explorer - Step 3", layout="wide")
-st.title("🍷 Wine Cellar Explorer - Step 3")
+st.set_page_config(page_title="Wine Cellar Explorer", layout="wide")
+st.title("🍷 Wine Cellar Explorer")
 
 # --- Initialize session_state defaults ---
 default_filters = {
@@ -38,7 +39,9 @@ default_filters = {
     "decade": "All",
     "terroir": "All",
     "quick_magnums": False,
-    "favorite_producer": "None"
+    "favorite_producer": "None",
+    "fridge_choice": "None",
+    "shelf_choice": "All"
 }
 
 for key, default in default_filters.items():
@@ -68,7 +71,7 @@ decade = st.selectbox("Decade", ["All"] + sorted(curr_lib["Decade"].dropna().uni
 terroir = st.selectbox("Terroir", ["All"] + sorted(curr_lib["Terroir"].dropna().unique()), key="terroir")
 
 # --- Reset Filters Button ---
-st.button("🔄 Reset Filters", on_click=reset_filters)
+st.sidebar.button("🔄 Reset Filters", on_click=reset_filters)
 
 # --- Apply Filters ---
 filtered = curr_lib.copy()
@@ -76,7 +79,6 @@ filtered = curr_lib.copy()
 # Quick Queries
 if st.session_state["quick_magnums"]:
     filtered = filtered[filtered["Notes"] == "Magnum"]
-
 if st.session_state["favorite_producer"] != "None":
     filtered = filtered[filtered["Producer"] == st.session_state["favorite_producer"]]
 
@@ -94,14 +96,12 @@ if st.session_state["decade"] != "All":
 if st.session_state["terroir"] != "All":
     filtered = filtered[filtered["Terroir"] == st.session_state["terroir"]]
 
-# --- Display Table ---
-st.subheader(f"Results ({len(filtered)} records)")
+# --- Display Filtered Table ---
+st.subheader(f"Results ({len(filtered)} records, {filtered['Bottles'].sum()} bottles)")
 st.dataframe(filtered, use_container_width=True)
 
-
-# --- Display Summary Tables ---
+# --- Summary Tables ---
 st.header("📊 Summary Tables")
-
 tab1, tab2, tab3, tab4 = st.tabs(["By Location", "By Producer", "By Decade", "By Vintage"])
 
 with tab1:
@@ -124,12 +124,11 @@ with tab4:
     st.subheader("Bottles by Vintage")
     st.dataframe(vint_summary, use_container_width=True)
 
-# --- Export to Excel ---
+# --- Export Filtered Results to Excel ---
 def to_excel(df):
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
         df.to_excel(writer, sheet_name="Filtered Results", index=False)
-        # Add summaries
         loc_summary.to_excel(writer, sheet_name="By Location", index=False)
         prod_summary.to_excel(writer, sheet_name="By Producer", index=False)
         decade_summary.to_excel(writer, sheet_name="By Decade", index=False)
@@ -144,3 +143,56 @@ st.download_button(
     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 )
 
+# --- FRIDGE SUMMARY WITH SHELF DETAIL ---
+st.header("🧊 Fridge Summary by Row")
+
+fridges_only = [loc for loc in curr_lib["Location"].dropna().unique() if "Fridge" in loc]
+selected_fridge = st.selectbox("Select a fridge location", ["All"] + sorted(fridges_only))
+
+if selected_fridge != "All":
+    fridge_data = curr_lib[curr_lib["Location"] == selected_fridge]
+else:
+    fridge_data = curr_lib[curr_lib["Location"].isin(fridges_only)]
+
+fridge_summary = (
+    fridge_data.groupby(['Location', 'Box_Shelf_Number'])
+    .agg({'Bottles': 'sum'})
+    .reset_index()
+    .sort_values(['Location', 'Box_Shelf_Number'])
+)
+st.subheader("Summary Table")
+st.dataframe(fridge_summary, use_container_width=True)
+st.markdown(f"**Total bottles in selection:** {fridge_data['Bottles'].sum()}")
+
+# --- SELECT SPECIFIC SHELF TO VIEW DETAILS ---
+st.subheader("Shelf Details")
+available_shelves = sorted(fridge_data['Box_Shelf_Number'].dropna().unique())
+selected_shelf = st.selectbox("Select a shelf (row number)", ["All"] + [str(int(s)) for s in available_shelves])
+
+if selected_shelf != "All":
+    shelf_data = fridge_data[fridge_data['Box_Shelf_Number'] == int(selected_shelf)]
+else:
+    shelf_data = fridge_data.copy()
+
+shelf_data = shelf_data.sort_values(by=['Producer', 'Vintage', 'Varietal'])
+st.dataframe(
+    shelf_data[['Producer', 'Varietal', 'Vintage', 'Bottles', 'Notes', 'Entry_Record_ID']],
+    use_container_width=True
+)
+
+st.markdown(f"**Bottles shown:** {shelf_data['Bottles'].sum()}")
+
+# --- Export Shelf Details to Excel ---
+def shelf_to_excel(df):
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+        df.to_excel(writer, sheet_name="Shelf Details", index=False)
+    output.seek(0)
+    return output
+
+st.download_button(
+    label="📥 Download Shelf Details as Excel",
+    data=shelf_to_excel(shelf_data),
+    file_name="shelf_details.xlsx",
+    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+)
