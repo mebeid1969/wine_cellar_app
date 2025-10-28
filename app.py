@@ -19,31 +19,59 @@ df_wl_act = df_wl[df_wl['Active_Storage_Record'] == 'Yes'].copy()
 df_cl_act = df_cl[df_cl['Active_Storage_Record'] == 'Yes'].copy()
 curr_lib = pd.concat([df_wl_act, df_cl_act], ignore_index=True)
 
+# Add Decade column
+bins = [1970, 1980, 1990, 2000, 2010, 2020, 2030]
+labels = ['1970s', '1980s', '1990s', '2000s', '2010s', '2020s']
+curr_lib['Decade'] = pd.cut(curr_lib['Vintage'], bins=bins, labels=labels, right=False)
+
 # --- Streamlit App ---
-st.set_page_config(page_title="Wine Cellar Explorer - Step 1", layout="wide")
-st.title("🍷 Wine Cellar Explorer - Step 1")
+st.set_page_config(page_title="Wine Cellar Explorer - Step 2", layout="wide")
+st.title("🍷 Wine Cellar Explorer - Step 2")
+
+# --- Initialize session_state defaults ---
+default_filters = {
+    "producer": "All",
+    "vintage": "All",
+    "location": "All",
+    "varietal": "All",
+    "decade": "All",
+    "terroir": "All"
+}
+
+for key, default in default_filters.items():
+    if key not in st.session_state:
+        st.session_state[key] = default
 
 # --- Callback function for Reset Filters ---
 def reset_filters():
-    st.session_state["producer_filter"] = "All"
+    for key, default in default_filters.items():
+        st.session_state[key] = default
 
-# --- Simple Filter ---
-if "producer_filter" not in st.session_state:
-    st.session_state["producer_filter"] = "All"
-
-producer = st.selectbox(
-    "Filter by Producer",
-    ["All"] + sorted(curr_lib["Producer"].dropna().unique()),
-    key="producer_filter"
-)
+# --- Filters ---
+producer = st.selectbox("Producer", ["All"] + sorted(curr_lib["Producer"].dropna().unique()), key="producer")
+vintage = st.selectbox("Vintage", ["All"] + sorted(curr_lib["Vintage"].dropna().unique()), key="vintage")
+location = st.selectbox("Location", ["All"] + sorted(curr_lib["Location"].dropna().unique()), key="location")
+varietal = st.selectbox("Varietal", ["All"] + sorted(curr_lib["Varietal"].dropna().unique()), key="varietal")
+decade = st.selectbox("Decade", ["All"] + sorted(curr_lib["Decade"].dropna().unique()), key="decade")
+terroir = st.selectbox("Terroir", ["All"] + sorted(curr_lib["Terroir"].dropna().unique()), key="terroir")
 
 # --- Reset Filters Button ---
 st.button("🔄 Reset Filters", on_click=reset_filters)
 
-# --- Apply Filter ---
+# --- Apply Filters ---
 filtered = curr_lib.copy()
-if st.session_state["producer_filter"] != "All":
-    filtered = filtered[filtered["Producer"] == st.session_state["producer_filter"]]
+if st.session_state["producer"] != "All":
+    filtered = filtered[filtered["Producer"] == st.session_state["producer"]]
+if st.session_state["vintage"] != "All":
+    filtered = filtered[filtered["Vintage"] == st.session_state["vintage"]]
+if st.session_state["location"] != "All":
+    filtered = filtered[filtered["Location"] == st.session_state["location"]]
+if st.session_state["varietal"] != "All":
+    filtered = filtered[filtered["Varietal"] == st.session_state["varietal"]]
+if st.session_state["decade"] != "All":
+    filtered = filtered[filtered["Decade"] == st.session_state["decade"]]
+if st.session_state["terroir"] != "All":
+    filtered = filtered[filtered["Terroir"] == st.session_state["terroir"]]
 
 # --- Display Table ---
 st.subheader(f"Results ({len(filtered)} records)")
