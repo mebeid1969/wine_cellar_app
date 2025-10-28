@@ -7,30 +7,34 @@ import io
 sheet_id = '1bK5u9n545BxNfXQeE4yC8gr0xF57ORDyfTecpr7sscE'
 xls = pd.ExcelFile(f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=xlsx")
 
+# Load sheets
 df_wl = pd.read_excel(xls, 'library', header=0)
 df_cl = pd.read_excel(xls, 'change log', header=0)
 df_cl['Change_Date'] = pd.to_datetime(df_cl['Change_Date'])
 
-# Mark active records
+# --- Data Prep ---
+# Active records
 df_wl['Active_Storage_Record'] = 'Yes'
 inactive_ids = df_cl['Entry_Record_ID'].unique()
 df_wl.loc[df_wl['Entry_Record_ID'].isin(inactive_ids), 'Active_Storage_Record'] = 'No'
 
-# Keep active bottles
+# Keep active only
 df_wl_act = df_wl[df_wl['Active_Storage_Record'] == 'Yes'].copy()
 df_cl_act = df_cl[df_cl['Active_Storage_Record'] == 'Yes'].copy()
+
+# Combine library and change log
 curr_lib = pd.concat([df_wl_act, df_cl_act], ignore_index=True)
 
-# Add Decade column
+# Decade column
 bins = [1970, 1980, 1990, 2000, 2010, 2020, 2030]
 labels = ['1970s', '1980s', '1990s', '2000s', '2010s', '2020s']
 curr_lib['Decade'] = pd.cut(curr_lib['Vintage'], bins=bins, labels=labels, right=False)
 
-# --- Streamlit App ---
+# --- Streamlit App Config ---
 st.set_page_config(page_title="Wine Cellar Explorer", layout="wide")
 st.title("🍷 Wine Cellar Explorer")
 
-# --- Initialize session_state defaults ---
+# --- Session State Defaults ---
 default_filters = {
     "producer": "All",
     "vintage": "All",
@@ -48,12 +52,12 @@ for key, default in default_filters.items():
     if key not in st.session_state:
         st.session_state[key] = default
 
-# --- Callback function for Reset Filters ---
+# Reset callback
 def reset_filters():
     for key, default in default_filters.items():
         st.session_state[key] = default
 
-# --- Sidebar Quick Queries ---
+# --- Sidebar Filters ---
 st.sidebar.header("⚡ Quick Queries")
 st.sidebar.checkbox("Magnums only", key="quick_magnums")
 st.sidebar.selectbox(
@@ -62,6 +66,9 @@ st.sidebar.selectbox(
     key="favorite_producer"
 )
 
+st.sidebar.markdown("---")
+st.sidebar.button("🔄 Reset Filters", on_click=reset_filters)
+
 # --- Main Filters ---
 producer = st.selectbox("Producer", ["All"] + sorted(curr_lib["Producer"].dropna().unique()), key="producer")
 vintage = st.selectbox("Vintage", ["All"] + sorted(curr_lib["Vintage"].dropna().unique()), key="vintage")
@@ -69,9 +76,6 @@ location = st.selectbox("Location", ["All"] + sorted(curr_lib["Location"].dropna
 varietal = st.selectbox("Varietal", ["All"] + sorted(curr_lib["Varietal"].dropna().unique()), key="varietal")
 decade = st.selectbox("Decade", ["All"] + sorted(curr_lib["Decade"].dropna().unique()), key="decade")
 terroir = st.selectbox("Terroir", ["All"] + sorted(curr_lib["Terroir"].dropna().unique()), key="terroir")
-
-# --- Reset Filters Button ---
-st.sidebar.button("🔄 Reset Filters", on_click=reset_filters)
 
 # --- Apply Filters ---
 filtered = curr_lib.copy()
