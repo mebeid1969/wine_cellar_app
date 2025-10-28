@@ -25,8 +25,8 @@ labels = ['1970s', '1980s', '1990s', '2000s', '2010s', '2020s']
 curr_lib['Decade'] = pd.cut(curr_lib['Vintage'], bins=bins, labels=labels, right=False)
 
 # --- Streamlit App ---
-st.set_page_config(page_title="Wine Cellar Explorer - Step 2", layout="wide")
-st.title("🍷 Wine Cellar Explorer - Step 2")
+st.set_page_config(page_title="Wine Cellar Explorer - Step 3", layout="wide")
+st.title("🍷 Wine Cellar Explorer - Step 3")
 
 # --- Initialize session_state defaults ---
 default_filters = {
@@ -35,7 +35,9 @@ default_filters = {
     "location": "All",
     "varietal": "All",
     "decade": "All",
-    "terroir": "All"
+    "terroir": "All",
+    "quick_magnums": False,
+    "favorite_producer": "None"
 }
 
 for key, default in default_filters.items():
@@ -47,7 +49,16 @@ def reset_filters():
     for key, default in default_filters.items():
         st.session_state[key] = default
 
-# --- Filters ---
+# --- Sidebar Quick Queries ---
+st.sidebar.header("⚡ Quick Queries")
+st.sidebar.checkbox("Magnums only", key="quick_magnums")
+st.sidebar.selectbox(
+    "Favorite producer",
+    ["None"] + sorted(curr_lib["Producer"].dropna().unique()),
+    key="favorite_producer"
+)
+
+# --- Main Filters ---
 producer = st.selectbox("Producer", ["All"] + sorted(curr_lib["Producer"].dropna().unique()), key="producer")
 vintage = st.selectbox("Vintage", ["All"] + sorted(curr_lib["Vintage"].dropna().unique()), key="vintage")
 location = st.selectbox("Location", ["All"] + sorted(curr_lib["Location"].dropna().unique()), key="location")
@@ -60,6 +71,15 @@ st.button("🔄 Reset Filters", on_click=reset_filters)
 
 # --- Apply Filters ---
 filtered = curr_lib.copy()
+
+# Quick Queries
+if st.session_state["quick_magnums"]:
+    filtered = filtered[filtered["Notes"] == "Magnum"]
+
+if st.session_state["favorite_producer"] != "None":
+    filtered = filtered[filtered["Producer"] == st.session_state["favorite_producer"]]
+
+# Main Filters
 if st.session_state["producer"] != "All":
     filtered = filtered[filtered["Producer"] == st.session_state["producer"]]
 if st.session_state["vintage"] != "All":
