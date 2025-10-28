@@ -1,8 +1,9 @@
 # app.py
 import pandas as pd
 import streamlit as st
-import io
 import matplotlib.pyplot as plt
+import io
+import textwrap
 
 # --- Load Data ---
 sheet_id = '1bK5u9n545BxNfXQeE4yC8gr0xF57ORDyfTecpr7sscE'
@@ -32,23 +33,34 @@ df_cl_act = df_cl[df_cl['Active_Storage_Record'] == 'Yes'].drop(columns=columns_
 
 curr_lib = pd.concat([df_wl_act, df_cl_act], ignore_index=True)
 
-# Ensure Terroir column exists
+# If Terroir column does not exist, create a placeholder so UI doesn't break
 if 'Terroir' not in curr_lib.columns:
-    curr_lib['Terroir'] = 'Unknown'# --- Streamlit Config ---
-st.set_page_config(page_title="Wine Cellar Explorer", layout="wide")
+    curr_lib['Terroir'] = 'Unknown'
 
-# --- Session State Defaults ---
+# --- Streamlit Config ---
+st.set_page_config(page_title="Wine Cellar Explorer", layout="wide")
+st.title("🍷 Wine Cellar Explorer")
+
+# --- Chart Color Palette (cool, subtle) ---
+palette = {
+    "primary": "#7fb3d5",   # cool blue
+    "accent": "#567892",    # darker slate
+    "line": "#9fc7e6",
+    "bg": "#ffffff"
+}
+
+# --- Session State Defaults with Reset Callback ---
 default_filters = {
+    "quick_magnums": False,
+    "favorite_producer": "None",
     "producer": "All",
     "vintage": "All",
     "location": "All",
     "varietal": "All",
-    "decade": "All",
     "terroir": "All",
-    "quick_magnums": False,
-    "favorite_producer": "None",
-    "fridge_choice": "None",
-    "shelf_choice": "All"
+    "decade": "All",
+    "selected_fridge": "All",
+    "selected_shelf": "All"
 }
 
 for key, default in default_filters.items():
@@ -65,13 +77,12 @@ st.sidebar.button("🔄 Reset Filters", on_click=reset_filters)
 st.sidebar.header("⚡ Quick Queries")
 st.sidebar.checkbox("Magnums only", key="quick_magnums")
 st.sidebar.selectbox(
-    "Favorite producer",
-    ["None"] + sorted(curr_lib["Producer"].dropna().unique()),
+    "Favorite producers",
+    ["None", "Clos du Val", "Corison", "Heitz Cellars", "Williams Selyem", "A. Rafanelli"],
     key="favorite_producer"
 )
 
-# --- Main Filters ---
-st.title("🍷 Wine Cellar Explorer")
+# --- Main Filters in 3 Columns ---
 with st.expander("🔍 Main Filters", expanded=True):
     col1, col2, col3 = st.columns(3)
     with col1:
@@ -86,6 +97,7 @@ with st.expander("🔍 Main Filters", expanded=True):
 
 # --- Apply Filters ---
 filtered = curr_lib.copy()
+
 if st.session_state["quick_magnums"]:
     filtered = filtered[filtered["Notes"] == "Magnum"]
 if st.session_state["favorite_producer"] != "None":
@@ -99,26 +111,53 @@ for key, col in zip(
     if val != "All":
         filtered = filtered[filtered[col] == val]
 
-# --- Results ---
-st.subheader(f"Results ({len(filtered)} records, {filtered['Bottles'].sum()} bottles)")
-st.dataframe(filtered, use_container_width=True)
+# --- Results (collapsible) ---
+with st.expander("📋 Query Results", expanded=True):
+    st.markdown(f"**{len(filtered)} records · {int(filtered['Bottles'].sum())} bottles total**")
+    st.dataframe(filtered.sort_values(by=["Producer", "Vintage"]), use_container_width=True)
 
-# --- Summary Tables in Collapsible Tabs ---
+    # Excel export for overall results
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+        filtered.to_excel(writer, sheet_name="Results", index=False)
+        summary = filtered.groupby("Producer").agg({"Bottles": "sum"}).reset_index()
+        summary.to_excel(writer, sheet_name="By Producer", index=False)
+    output.seek(0)
+    st.download_button(
+        label="📊 Download results as Excel",
+        data=output,
+        file_name="wine_query_results.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+
+# --- Summary Views (collapsible with tabs) ---
 with st.expander("📊 Summary Views", expanded=False):
-    tab1, tab2, tab3, tab4 = st.tabs(["By Location","By Producer","By Decade","By Vintage"])
-    
+    tab1, tab2, tab3, tab4 = st.tabs(["By Location", "By Producer", "By Decade", "By Vintage"])
+
     with tab1:
         loc_summary = filtered.groupby("Location")["Bottles"].sum().reset_index()
         st.write(loc_summary)
+
     with tab2:
         prod_summary = filtered.groupby("Producer")["Bottles"].sum().reset_index()
         st.write(prod_summary)
+
     with tab3:
         dec_summary = filtered.groupby("Decade")["Bottles"].sum().reset_index()
         st.write(dec_summary)
+        # Decade bar chart
+        if not dec_summary.empty:
+            fig, ax = plt.subplots(figsize=(8,3))
+            ax.bar(dec_summary['Decade'].astype(str), dec_summary['Bottles'], color=palette["primary"])
+            ax.set_xlabel("Decade")
+            ax.set_ylabel("Bottles")
+            ax.set_title("Bottles by Decade")
+            st.pyplot(fig)
+
     with tab4:
         vint_summary = filtered.groupby("Vintage")["Bottles"].sum().reset_index().sort_values("Vintage")
         st.write(vint_summary)
+        # Vintage line chart
         if not vint_summary.empty:
             fig, ax = plt.subplots(figsize=(10,3))
             ax.plot(vint_summary["Vintage"], vint_summary["Bottles"], marker="o", color=palette["line"])
@@ -127,41 +166,21 @@ with st.expander("📊 Summary Views", expanded=False):
             ax.set_title("Bottles by Vintage")
             st.pyplot(fig)
 
-# --- Excel Export ---
-def to_excel(df):
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-        df.to_excel(writer, sheet_name="Filtered Results", index=False)
-        loc_summary.to_excel(writer, sheet_name="By Location", index=False)
-        prod_summary.to_excel(writer, sheet_name="By Producer", index=False)
-        decade_summary.to_excel(writer, sheet_name="By Decade", index=False)
-        vint_summary.to_excel(writer, sheet_name="By Vintage", index=False)
-    output.seek(0)
-    return output
-
-st.download_button(
-    label="📥 Download Filtered Results as Excel",
-    data=to_excel(filtered),
-    file_name="wine_cellar_results.xlsx",
-    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-)
-
-# --- Fridge Summary ---
-with st.expander("🧊 Fridge / Shelf Lookup", expanded=True):
+# --- Fridge & Shelf ---
+with st.expander("🧊 Fridge Summary by Row", expanded=True):
     fridges_only = [loc for loc in curr_lib["Location"].dropna().unique() if "Fridge" in loc]
-    selected_fridge = st.selectbox("Select a fridge location", ["All"] + sorted(fridges_only))
+    selected_fridge = st.selectbox("Select a fridge location", ["All"] + sorted(fridges_only), key="selected_fridge")
     fridge_data = curr_lib[curr_lib["Location"].isin(fridges_only)]
     if selected_fridge != "All":
         fridge_data = fridge_data[fridge_data["Location"] == selected_fridge]
-    
+
     fridge_summary = fridge_data.groupby(["Location","Box_Shelf_Number"])["Bottles"].sum().reset_index().sort_values(["Location","Box_Shelf_Number"])
     st.dataframe(fridge_summary, use_container_width=True)
     st.markdown(f"**Total bottles in selection:** {fridge_data['Bottles'].sum()}")
 
-# --- Shelf Details ---
 with st.expander("🔍 Shelf Details", expanded=True):
     available_shelves = sorted(fridge_data['Box_Shelf_Number'].dropna().unique())
-    selected_shelf = st.selectbox("Select a shelf (row number)", ["All"] + [str(int(s)) for s in available_shelves])
+    selected_shelf = st.selectbox("Select a shelf (row number)", ["All"] + [str(int(s)) for s in available_shelves], key="selected_shelf")
     
     if selected_shelf != "All":
         shelf_data = fridge_data[fridge_data['Box_Shelf_Number'] == int(selected_shelf)]
@@ -176,16 +195,13 @@ with st.expander("🔍 Shelf Details", expanded=True):
     st.markdown(f"**Bottles shown:** {shelf_data['Bottles'].sum()}")
 
     # Excel export for shelf
-    def shelf_to_excel(df):
-        output = io.BytesIO()
-        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-            df.to_excel(writer, sheet_name="Shelf Details", index=False)
-        output.seek(0)
-        return output
-
+    output_shelf = io.BytesIO()
+    with pd.ExcelWriter(output_shelf, engine="xlsxwriter") as writer:
+        shelf_data.to_excel(writer, sheet_name="Shelf Details", index=False)
+    output_shelf.seek(0)
     st.download_button(
         label="📥 Download Shelf Details as Excel",
-        data=shelf_to_excel(shelf_data),
+        data=output_shelf,
         file_name="shelf_details.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
