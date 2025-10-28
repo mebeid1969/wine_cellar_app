@@ -171,3 +171,69 @@ with tab4:
     ax.set_ylabel("Bottles")
     ax.set_title("Bottles by Vintage")
     st.pyplot(fig)
+
+
+
+# --- FRIDGE SUMMARY WITH SHELF DETAIL ---
+
+st.header("Fridge Summary by Row")
+
+# Select a specific fridge (or show all)
+fridge_options = sorted(curr_lib['Location'].dropna().unique())
+selected_fridge = st.selectbox("Select a fridge location", ["All"] + fridge_options)
+
+# Filter the data
+if selected_fridge != "All":
+    fridge_data = curr_lib[curr_lib['Location'] == selected_fridge]
+else:
+    fridge_data = curr_lib[curr_lib['Location'].isin([
+        'Basement Fridge Left', 'Basement Fridge Right', 'Waiter Fridge'
+    ])]
+
+# Group by Location and Box_Shelf_Number to get total bottles per row
+fridge_summary = (
+    fridge_data.groupby(['Location', 'Box_Shelf_Number'])
+    .agg({'Bottles': 'sum'})
+    .reset_index()
+    .sort_values(['Location', 'Box_Shelf_Number'])
+)
+
+# Display the summary
+st.subheader("Summary Table")
+st.dataframe(fridge_summary, use_container_width=True)
+
+# Add total count for clarity
+total_bottles = fridge_data['Bottles'].sum()
+st.markdown(f"**Total bottles in selection:** {total_bottles}")
+
+# Optional: Add chart visualization
+st.subheader("Bottles per Shelf")
+st.bar_chart(
+    fridge_summary.set_index('Box_Shelf_Number')['Bottles'],
+    use_container_width=True
+)
+
+# --- SELECT SPECIFIC SHELF TO VIEW DETAILS ---
+
+st.subheader("Shelf Details")
+
+# Only show shelves available for the selected fridge(s)
+available_shelves = sorted(fridge_data['Box_Shelf_Number'].dropna().unique())
+selected_shelf = st.selectbox("Select a shelf (row number)", ["All"] + [str(int(s)) for s in available_shelves])
+
+# Filter data by shelf
+if selected_shelf != "All":
+    shelf_data = fridge_data[fridge_data['Box_Shelf_Number'] == int(selected_shelf)]
+else:
+    shelf_data = fridge_data.copy()
+
+# Sort and display detailed bottles on that shelf
+shelf_data = shelf_data.sort_values(by=['Producer', 'Vintage', 'Varietal'])
+st.dataframe(
+    shelf_data[['Producer', 'Varietal', 'Vintage', 'Bottles', 'Notes', 'Entry_Record_ID']],
+    use_container_width=True
+)
+
+# Add count
+st.markdown(f"**Bottles shown:** {shelf_data['Bottles'].sum()}")
+
