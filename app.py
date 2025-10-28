@@ -3,7 +3,6 @@ import pandas as pd
 import streamlit as st
 import matplotlib.pyplot as plt
 import io
-import textwrap
 
 # --- Load Data ---
 sheet_id = '1bK5u9n545BxNfXQeE4yC8gr0xF57ORDyfTecpr7sscE'
@@ -37,7 +36,7 @@ curr_lib = pd.concat([df_wl_act, df_cl_act], ignore_index=True)
 if 'Terroir' not in curr_lib.columns:
     curr_lib['Terroir'] = 'Unknown'
 
-# --- Streamlit UI & Theme ---
+# --- Streamlit UI ---
 st.set_page_config(page_title="Wine Cellar Explorer", layout="wide")
 
 # --- Initialize session_state keys ---
@@ -50,8 +49,6 @@ default_session_keys = {
     "varietal": "All",
     "terroir": "All",
     "decade": "All",
-    "selected_fridge": "All",
-    "selected_shelf": "All",
     "theme_toggle": False
 }
 for key, default in default_session_keys.items():
@@ -60,13 +57,8 @@ for key, default in default_session_keys.items():
 
 # Sidebar - theme toggle
 st.sidebar.header("⚙️ Settings")
-try:
-    theme_toggle = st.sidebar.toggle("🌙 Dark mode", value=st.session_state["theme_toggle"])
-except Exception:
-    theme_toggle = st.sidebar.checkbox("🌙 Dark mode", value=st.session_state["theme_toggle"])
+theme_toggle = st.sidebar.toggle("🌙 Dark mode", value=st.session_state["theme_toggle"])
 st.session_state["theme_toggle"] = theme_toggle
-
-# Set theme in session state
 st.session_state["theme"] = "dark" if theme_toggle else "light"
 
 # Inject theme CSS
@@ -95,9 +87,9 @@ inject_theme_css(st.session_state["theme"])
 # Chart colors
 def get_chart_colors(theme_name: str):
     if theme_name == "dark":
-        return {"primary": "#7fb3d5", "accent": "#567892", "line": "#9fc7e6", "bg": "#0b1220"}
+        return {"line": "#9fc7e6"}
     else:
-        return {"primary": "#1f77b4", "accent": "#2ca02c", "line": "#1f77b4", "bg": "#ffffff"}
+        return {"line": "#1f77b4"}
 palette = get_chart_colors(st.session_state["theme"])
 
 # --- Sidebar Quick Queries ---
@@ -109,17 +101,15 @@ favorite_producer = st.sidebar.selectbox(
     key="favorite_producer"
 )
 
-# --- Reset Filters ---
+# --- Reset Filters Button (safe) ---
 st.sidebar.markdown("---")
 if st.sidebar.button("🔄 Reset Filters"):
-    for key in default_session_keys.keys():
-        if isinstance(default_session_keys[key], bool):
-            st.session_state[key] = False
-        else:
-            st.session_state[key] = default_session_keys[key]
+    for key, default in default_session_keys.items():
+        if key in st.session_state:
+            st.session_state[key] = default
     st.experimental_rerun()
 
-# --- Main Filters (Expander) ---
+# --- Main Filters ---
 st.title("🍷 Wine Cellar Explorer")
 with st.expander("🔍 Main Filters", expanded=True):
     col1, col2, col3 = st.columns(3)
@@ -170,7 +160,7 @@ with st.expander("📋 Query Results", expanded=True):
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
 
-# --- Summary Views ---
+# --- Summary Views (tables only) ---
 with st.expander("📊 Summary Views", expanded=False):
     tab1, tab2, tab3, tab4 = st.tabs(["By Location", "By Producer", "By Decade", "By Vintage"])
     with tab1:
@@ -221,7 +211,7 @@ shelf_data = shelf_data.sort_values(by=['Producer', 'Vintage', 'Varietal'])
 st.dataframe(shelf_data[['Producer','Varietal','Vintage','Bottles','Notes','Entry_Record_ID']], use_container_width=True)
 st.markdown(f"**Bottles shown:** {int(shelf_data['Bottles'].sum())}")
 
-# Add Excel export for selected shelf
+# Excel export for selected shelf
 output_shelf = io.BytesIO()
 with pd.ExcelWriter(output_shelf, engine="xlsxwriter") as writer:
     shelf_data.to_excel(writer, sheet_name="Shelf Details", index=False)
