@@ -41,15 +41,30 @@ if 'Terroir' not in curr_lib.columns:
 st.set_page_config(page_title="Wine Cellar Explorer", layout="wide")
 st.title("🍷 Wine Cellar Explorer")
 
-# --- Chart Color Palette (cool, subtle) ---
+# --- Light Theme CSS ---
+def inject_light_css():
+    css = """
+    <style>
+    .stApp {background-color: #ffffff; color: #0b1220;}
+    .css-1d391kg, .css-1v3fvcr {background-color: #f8fafc !important;}
+    .stDataFrame th {color: #0b1220 !important;}
+    .muted {color: #475569;}
+    .stButton>button {background-color: transparent; border: 1px solid #2b4157;}
+    </style>
+    """
+    st.markdown(css, unsafe_allow_html=True)
+
+inject_light_css()
+
+# --- Chart Color Palette ---
 palette = {
-    "primary": "#7fb3d5",   # cool blue
-    "accent": "#567892",    # darker slate
+    "primary": "#7fb3d5",
+    "accent": "#567892",
     "line": "#9fc7e6",
     "bg": "#ffffff"
 }
 
-# --- Session State Defaults with Reset Callback ---
+# --- Session State Defaults ---
 default_filters = {
     "quick_magnums": False,
     "favorite_producer": "None",
@@ -111,12 +126,11 @@ for key, col in zip(
     if val != "All":
         filtered = filtered[filtered[col] == val]
 
-# --- Results (collapsible) ---
+# --- Results ---
 with st.expander("📋 Query Results", expanded=True):
     st.markdown(f"**{len(filtered)} records · {int(filtered['Bottles'].sum())} bottles total**")
     st.dataframe(filtered.sort_values(by=["Producer", "Vintage"]), use_container_width=True)
 
-    # Excel export for overall results
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
         filtered.to_excel(writer, sheet_name="Results", index=False)
@@ -130,22 +144,18 @@ with st.expander("📋 Query Results", expanded=True):
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
 
-# --- Summary Views (collapsible with tabs) ---
+# --- Summary Views with Charts ---
 with st.expander("📊 Summary Views", expanded=False):
-    tab1, tab2, tab3, tab4 = st.tabs(["By Location", "By Producer", "By Decade", "By Vintage"])
-
+    tab1, tab2, tab3, tab4 = st.tabs(["By Location","By Producer","By Decade","By Vintage"])
     with tab1:
         loc_summary = filtered.groupby("Location")["Bottles"].sum().reset_index()
         st.write(loc_summary)
-
     with tab2:
         prod_summary = filtered.groupby("Producer")["Bottles"].sum().reset_index()
         st.write(prod_summary)
-
     with tab3:
         dec_summary = filtered.groupby("Decade")["Bottles"].sum().reset_index()
         st.write(dec_summary)
-        # Decade bar chart
         if not dec_summary.empty:
             fig, ax = plt.subplots(figsize=(8,3))
             ax.bar(dec_summary['Decade'].astype(str), dec_summary['Bottles'], color=palette["primary"])
@@ -153,11 +163,9 @@ with st.expander("📊 Summary Views", expanded=False):
             ax.set_ylabel("Bottles")
             ax.set_title("Bottles by Decade")
             st.pyplot(fig)
-
     with tab4:
         vint_summary = filtered.groupby("Vintage")["Bottles"].sum().reset_index().sort_values("Vintage")
         st.write(vint_summary)
-        # Vintage line chart
         if not vint_summary.empty:
             fig, ax = plt.subplots(figsize=(10,3))
             ax.plot(vint_summary["Vintage"], vint_summary["Bottles"], marker="o", color=palette["line"])
@@ -166,14 +174,13 @@ with st.expander("📊 Summary Views", expanded=False):
             ax.set_title("Bottles by Vintage")
             st.pyplot(fig)
 
-# --- Fridge & Shelf ---
-with st.expander("🧊 Fridge / Shelf Lookup", expanded=True):
+# --- Fridge & Shelf Details ---
+with st.expander("🧊 Fridge Summary by Row", expanded=True):
     fridges_only = [loc for loc in curr_lib["Location"].dropna().unique() if "Fridge" in loc]
     selected_fridge = st.selectbox("Select a fridge location", ["All"] + sorted(fridges_only), key="selected_fridge")
     fridge_data = curr_lib[curr_lib["Location"].isin(fridges_only)]
     if selected_fridge != "All":
         fridge_data = fridge_data[fridge_data["Location"] == selected_fridge]
-
     fridge_summary = fridge_data.groupby(["Location","Box_Shelf_Number"])["Bottles"].sum().reset_index().sort_values(["Location","Box_Shelf_Number"])
     st.dataframe(fridge_summary, use_container_width=True)
     st.markdown(f"**Total bottles in selection:** {fridge_data['Bottles'].sum()}")
@@ -181,12 +188,10 @@ with st.expander("🧊 Fridge / Shelf Lookup", expanded=True):
 with st.expander("🔍 Shelf Details", expanded=True):
     available_shelves = sorted(fridge_data['Box_Shelf_Number'].dropna().unique())
     selected_shelf = st.selectbox("Select a shelf (row number)", ["All"] + [str(int(s)) for s in available_shelves], key="selected_shelf")
-    
     if selected_shelf != "All":
         shelf_data = fridge_data[fridge_data['Box_Shelf_Number'] == int(selected_shelf)]
     else:
         shelf_data = fridge_data.copy()
-    
     shelf_data = shelf_data.sort_values(by=['Producer','Vintage','Varietal'])
     st.dataframe(
         shelf_data[['Producer','Varietal','Vintage','Bottles','Notes','Entry_Record_ID']],
@@ -194,7 +199,6 @@ with st.expander("🔍 Shelf Details", expanded=True):
     )
     st.markdown(f"**Bottles shown:** {shelf_data['Bottles'].sum()}")
 
-    # Excel export for shelf
     output_shelf = io.BytesIO()
     with pd.ExcelWriter(output_shelf, engine="xlsxwriter") as writer:
         shelf_data.to_excel(writer, sheet_name="Shelf Details", index=False)
@@ -205,3 +209,12 @@ with st.expander("🔍 Shelf Details", expanded=True):
         file_name="shelf_details.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
+
+# --- Small Footer / Help ---
+with st.expander("ℹ️ App Notes / Help", expanded=False):
+    st.markdown(textwrap.dedent("""
+        - Use the filters to narrow results; press **Reset Filters** in the sidebar to clear selections.
+        - Export the query results or shelf details to Excel using the Download buttons.
+        - If a Terroir column is not present in your sheet, the app shows 'Unknown' and the Terroir filter will be limited.
+        - Charts are provided for Decade and Vintage for quick visualization.
+    """))
