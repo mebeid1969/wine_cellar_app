@@ -29,10 +29,6 @@ curr_lib['Decade'] = pd.cut(curr_lib['Vintage'], bins=bins, labels=labels, right
 st.set_page_config(page_title="Wine Cellar Explorer", layout="wide")
 st.title("🍷 Wine Cellar Explorer")
 
-# --- Sidebar: Theme Toggle ---
-st.sidebar.header("⚙ Settings")
-theme_choice = st.sidebar.radio("Theme", ["Light", "Dark"], index=0)
-
 # --- Session State Defaults ---
 default_filters = {
     "producer": "All",
@@ -66,14 +62,19 @@ st.sidebar.selectbox(
     key="favorite_producer"
 )
 
-# --- Main Filters ---
+# --- Main Filters in 2 Columns ---
 with st.expander("🔍 Main Filters", expanded=True):
-    producer = st.selectbox("Producer", ["All"] + sorted(curr_lib["Producer"].dropna().unique()), key="producer")
-    vintage = st.selectbox("Vintage", ["All"] + sorted(curr_lib["Vintage"].dropna().unique()), key="vintage")
-    location = st.selectbox("Location", ["All"] + sorted(curr_lib["Location"].dropna().unique()), key="location")
-    varietal = st.selectbox("Varietal", ["All"] + sorted(curr_lib["Varietal"].dropna().unique()), key="varietal")
-    decade = st.selectbox("Decade", ["All"] + sorted(curr_lib["Decade"].dropna().unique()), key="decade")
-    terroir = st.selectbox("Terroir", ["All"] + sorted(curr_lib["Terroir"].dropna().unique()), key="terroir")
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        producer = st.selectbox("Producer", ["All"] + sorted(curr_lib["Producer"].dropna().unique()), key="producer")
+        vintage = st.selectbox("Vintage", ["All"] + sorted(curr_lib["Vintage"].dropna().unique()), key="vintage")
+        location = st.selectbox("Location", ["All"] + sorted(curr_lib["Location"].dropna().unique()), key="location")
+    
+    with col2:
+        varietal = st.selectbox("Varietal", ["All"] + sorted(curr_lib["Varietal"].dropna().unique()), key="varietal")
+        decade = st.selectbox("Decade", ["All"] + sorted(curr_lib["Decade"].dropna().unique()), key="decade")
+        terroir = st.selectbox("Terroir", ["All"] + sorted(curr_lib["Terroir"].dropna().unique()), key="terroir")
 
 # --- Apply Filters ---
 filtered = curr_lib.copy()
