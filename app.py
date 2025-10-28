@@ -12,20 +12,29 @@ df_wl = pd.read_excel(xls, 'library', header=0)
 df_cl = pd.read_excel(xls, 'change log', header=0)
 df_cl['Change_Date'] = pd.to_datetime(df_cl['Change_Date'])
 
-# --- Data Prep ---
+# Add active flag
 df_wl['Active_Storage_Record'] = 'Yes'
-inactive_ids = df_cl['Entry_Record_ID'].unique()
-df_wl.loc[df_wl['Entry_Record_ID'].isin(inactive_ids), 'Active_Storage_Record'] = 'No'
 
-df_wl_act = df_wl[df_wl['Active_Storage_Record'] == 'Yes'].copy()
-df_cl_act = df_cl[df_cl['Active_Storage_Record'] == 'Yes'].copy()
-curr_lib = pd.concat([df_wl_act, df_cl_act], ignore_index=True)
-
+# Add decades
 bins = [1970, 1980, 1990, 2000, 2010, 2020, 2030]
 labels = ['1970s', '1980s', '1990s', '2000s', '2010s', '2020s']
-curr_lib['Decade'] = pd.cut(curr_lib['Vintage'], bins=bins, labels=labels, right=False)
+df_wl['Decade'] = pd.cut(df_wl['Vintage'], bins=bins, labels=labels, right=False)
 
-# --- Streamlit Config ---
+# Mark inactive records
+entry_record_ids_to_update = df_cl['Entry_Record_ID'].unique()
+df_wl.loc[df_wl['Entry_Record_ID'].isin(entry_record_ids_to_update), 'Active_Storage_Record'] = 'No'
+
+# Keep active bottles only
+df_wl_act = df_wl[df_wl['Active_Storage_Record'] == 'Yes'].copy()
+df_cl = df_cl.sort_values('Change_Date', ascending=False).drop_duplicates(subset='Entry_Record_ID', keep='first')
+columns_to_drop = ["Change_Date", "Change", "Consumption_Notes"]
+df_cl_act = df_cl[df_cl['Active_Storage_Record'] == 'Yes'].drop(columns=columns_to_drop).copy()
+
+curr_lib = pd.concat([df_wl_act, df_cl_act], ignore_index=True)
+
+# Ensure Terroir column exists
+if 'Terroir' not in curr_lib.columns:
+    curr_lib['Terroir'] = 'Unknown'# --- Streamlit Config ---
 st.set_page_config(page_title="Wine Cellar Explorer", layout="wide")
 
 # --- Session State Defaults ---
