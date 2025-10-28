@@ -43,12 +43,6 @@ st.set_page_config(page_title="Wine Cellar Explorer", layout="wide")
 default_session_keys = {
     "quick_magnums": False,
     "favorite_producer": "None",
-    "producer": "All",
-    "vintage": "All",
-    "location": "All",
-    "varietal": "All",
-    "terroir": "All",
-    "decade": "All",
     "theme_toggle": False
 }
 for key, default in default_session_keys.items():
@@ -59,7 +53,7 @@ for key, default in default_session_keys.items():
 st.sidebar.header("⚙️ Settings")
 theme_toggle = st.sidebar.toggle("🌙 Dark mode", value=st.session_state["theme_toggle"])
 st.session_state["theme_toggle"] = theme_toggle
-st.session_state["theme"] = "dark" if theme_toggle else "light"
+theme_name = "dark" if theme_toggle else "light"
 
 # Inject theme CSS
 def inject_theme_css(theme_name: str):
@@ -82,15 +76,10 @@ def inject_theme_css(theme_name: str):
     </style>
     """
     st.markdown(css, unsafe_allow_html=True)
-inject_theme_css(st.session_state["theme"])
+inject_theme_css(theme_name)
 
 # Chart colors
-def get_chart_colors(theme_name: str):
-    if theme_name == "dark":
-        return {"line": "#9fc7e6"}
-    else:
-        return {"line": "#1f77b4"}
-palette = get_chart_colors(st.session_state["theme"])
+palette = {"line": "#9fc7e6" if theme_name == "dark" else "#1f77b4"}
 
 # --- Sidebar Quick Queries ---
 st.sidebar.header("⚡ Quick Queries")
@@ -104,9 +93,10 @@ favorite_producer = st.sidebar.selectbox(
 # --- Reset Filters Button (safe) ---
 st.sidebar.markdown("---")
 if st.sidebar.button("🔄 Reset Filters"):
-    for key, default in default_session_keys.items():
+    # Only clear non-widget keys
+    for key in ["quick_magnums", "favorite_producer"]:
         if key in st.session_state:
-            st.session_state[key] = default
+            del st.session_state[key]
     st.experimental_rerun()
 
 # --- Main Filters ---
@@ -207,8 +197,12 @@ if selected_shelf != "All":
     shelf_data = fridge_data[fridge_data['Box_Shelf_Number'] == int(selected_shelf)]
 else:
     shelf_data = fridge_data.copy()
+
 shelf_data = shelf_data.sort_values(by=['Producer', 'Vintage', 'Varietal'])
-st.dataframe(shelf_data[['Producer','Varietal','Vintage','Bottles','Notes','Entry_Record_ID']], use_container_width=True)
+st.dataframe(
+    shelf_data[['Producer', 'Varietal', 'Vintage', 'Bottles', 'Notes', 'Entry_Record_ID']],
+    use_container_width=True
+)
 st.markdown(f"**Bottles shown:** {int(shelf_data['Bottles'].sum())}")
 
 # Excel export for selected shelf
