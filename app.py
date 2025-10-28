@@ -1,4 +1,3 @@
-# step1_minimal_app.py
 import pandas as pd
 import streamlit as st
 
@@ -24,6 +23,10 @@ curr_lib = pd.concat([df_wl_act, df_cl_act], ignore_index=True)
 st.set_page_config(page_title="Wine Cellar Explorer - Step 1", layout="wide")
 st.title("🍷 Wine Cellar Explorer - Step 1")
 
+# --- Callback function for Reset Filters ---
+def reset_filters():
+    st.session_state["producer_filter"] = "All"
+
 # --- Simple Filter ---
 if "producer_filter" not in st.session_state:
     st.session_state["producer_filter"] = "All"
@@ -35,15 +38,13 @@ producer = st.selectbox(
 )
 
 # --- Reset Filters Button ---
-if st.button("🔄 Reset Filters"):
-    st.session_state["producer_filter"] = "All"
+st.button("🔄 Reset Filters", on_click=reset_filters)
 
 # --- Apply Filter ---
 filtered = curr_lib.copy()
-if producer != "All":
-    filtered = filtered[filtered["Producer"] == producer]
+if st.session_state["producer_filter"] != "All":
+    filtered = filtered[filtered["Producer"] == st.session_state["producer_filter"]]
 
 # --- Display Table ---
 st.subheader(f"Results ({len(filtered)} records)")
 st.dataframe(filtered, use_container_width=True)
-
